@@ -123,7 +123,7 @@
             scene.add(directionalLight);
             
             // Create the clamp models
-            createBaseModel();
+            createBaseModel(); // Uncommented to ensure baseMesh is defined
             createClampModel();
             
             // Mouse controls
@@ -216,42 +216,45 @@
         }
         
         function createClampModel() {
+            console.log("Creating clamp model...");
             const clampGroup = new THREE.Group();
             
-            // Main clamp body (wedge shape)
-            const clampGeometry = new THREE.BufferGeometry();
-            const vertices = new Float32Array([
-                // Front face (thicker end - 0.85)
-                -13.26/2, 0, 6.616/2,     // bottom left
-                13.26/2, 0, 6.616/2,      // bottom right
-                13.26/2, 0.85, 6.616/2,   // top right
-                -13.26/2, 0.85, 6.616/2,  // top left
+            try {
+                // Main clamp body (wedge shape)
+                const clampGeometry = new THREE.BufferGeometry();
+                const vertices = new Float32Array([
+                    // Front face (thicker end - 0.85)
+                    -13.26/2, 0, 6.616/2,     // bottom left
+                    13.26/2, 0, 6.616/2,      // bottom right
+                    13.26/2, 0.85, 6.616/2,   // top right
+                    -13.26/2, 0.85, 6.616/2,  // top left
+                    
+                    // Back face (thinner end - 0.70)
+                    -13.26/2, 0, -6.616/2,    // bottom left
+                    13.26/2, 0, -6.616/2,     // bottom right
+                    13.26/2, 0.70, -6.616/2,  // top right
+                    -13.26/2, 0.70, -6.616/2, // top left
+                ]);
                 
-                // Back face (thinner end - 0.70)
-                -13.26/2, 0, -6.616/2,    // bottom left
-                13.26/2, 0, -6.616/2,     // bottom right
-                13.26/2, 0.70, -6.616/2,  // top right
-                -13.26/2, 0.70, -6.616/2, // top left
-            ]);
-            
-            const indices = new Uint16Array([
-                // Front face
-                0, 1, 2, 0, 2, 3,
-                // Back face
-                4, 6, 5, 4, 7, 6,
-                // Bottom face
-                0, 4, 5, 0, 5, 1,
-                // Top face (slanted)
-                3, 2, 6, 3, 6, 7,
-                // Left face
-                0, 3, 7, 0, 7, 4,
-                // Right face
-                1, 5, 6, 1, 6, 2
-            ]);
-            
-            clampGeometry.setIndex(indices);
-            clampGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-            clampGeometry.computeVertexNormals();
+                const indices = new Uint16Array([
+                    // Front face
+                    0, 1, 2, 0, 2, 3,
+                    // Back face
+                    4, 6, 5, 4, 7, 6,
+                    // Bottom face
+                    0, 4, 5, 0, 5, 1,
+                    // Top face (slanted)
+                    3, 2, 6, 3, 6, 7,
+                    // Left face
+                    0, 3, 7, 0, 7, 4,
+                    // Right face
+                    1, 5, 6, 1, 6, 2
+                ]);
+                
+                clampGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
+                clampGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                clampGeometry.computeVertexNormals();
+                console.log("Main clamp body created successfully");
             
             const clampMaterial = new THREE.MeshLambertMaterial({ color: 0x999999 });
             const clampBody = new THREE.Mesh(clampGeometry, clampMaterial);
@@ -282,32 +285,39 @@
             clampGroup.add(clampScrewHole);
             
             // Triangular supports
-            const triangleGeometry = new THREE.BufferGeometry();
-            const triVertices = new Float32Array([
-                0, 0, 0,           // bottom corner
-                0.44, 0, 0,        // base right
-                0, 0.70, 0         // top corner
-            ]);
-            triangleGeometry.setAttribute('position', new THREE.BufferAttribute(triVertices, 3));
-            triangleGeometry.setIndex([0, 1, 2]);
-            triangleGeometry.computeVertexNormals();
-            
-            const triangleMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
-            
-            // Position triangular supports
-            const supportPositions = [
-                -13.26/4 - 3.17/4,  // Left positions
-                -13.26/4 + 3.17/4,
-                13.26/4 - 3.17/4,   // Right positions  
-                13.26/4 + 3.17/4
-            ];
-            
-            supportPositions.forEach((xPos, index) => {
-                const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
-                triangle.position.set(xPos, 0, -6.616/2 + 0.85/2);
-                triangle.castShadow = true;
-                clampGroup.add(triangle);
-            });
+            try {
+                console.log("Creating triangular supports...");
+                const triangleGeometry = new THREE.BufferGeometry();
+                const triVertices = new Float32Array([
+                    0, 0, 0,           // bottom corner
+                    0.44, 0, 0,        // base right
+                    0, 0.70, 0         // top corner
+                ]);
+                triangleGeometry.setAttribute('position', new THREE.BufferAttribute(triVertices, 3));
+                // Use proper BufferAttribute for indices instead of direct array
+                triangleGeometry.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2]), 1));
+                triangleGeometry.computeVertexNormals();
+                
+                const triangleMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+                
+                // Position triangular supports
+                const supportPositions = [
+                    -13.26/4 - 3.17/4,  // Left positions
+                    -13.26/4 + 3.17/4,
+                    13.26/4 - 3.17/4,   // Right positions
+                    13.26/4 + 3.17/4
+                ];
+                
+                supportPositions.forEach((xPos, index) => {
+                    const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
+                    triangle.position.set(xPos, 0, -6.616/2 + 0.85/2);
+                    triangle.castShadow = true;
+                    clampGroup.add(triangle);
+                });
+                console.log("Triangular supports created successfully");
+            } catch (error) {
+                console.error("Error creating triangular supports:", error);
+            }
             
             clampMesh = clampGroup;
             
@@ -319,6 +329,11 @@
             }
             
             scene.add(clampMesh);
+            console.log("Clamp model added to scene successfully");
+            
+            } catch (error) {
+                console.error("Error in createClampModel:", error);
+            }
         }
         
         function setupControls() {
@@ -392,15 +407,19 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            // Smooth rotation
-            rotationX += (targetRotationX - rotationX) * 0.1;
-            rotationY += (targetRotationY - rotationY) * 0.1;
-            
-            // Apply rotation to scene
-            scene.rotation.x = rotationX;
-            scene.rotation.y = rotationY;
-            
-            renderer.render(scene, camera);
+            try {
+                // Smooth rotation
+                rotationX += (targetRotationX - rotationX) * 0.1;
+                rotationY += (targetRotationY - rotationY) * 0.1;
+                
+                // Apply rotation to scene
+                scene.rotation.x = rotationX;
+                scene.rotation.y = rotationY;
+                
+                renderer.render(scene, camera);
+            } catch (error) {
+                console.error("Error in animate function:", error);
+            }
         }
         
         // Handle window resize
