@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Clamp Model</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+            font-size: 14px;
+        }
+        
+        #info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 100;
+            font-size: 12px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div id="controls">
+        <h3>3D Clamp Model</h3>
+        <button onclick="toggleAssembly()">Toggle Assembly/Separated</button>
+        <button onclick="resetView()">Reset View</button>
+        <br>
+        <label>
+            <input type="checkbox" id="wireframe" onchange="toggleWireframe()">
+            Wireframe Mode
+        </label>
+    </div>
+    
+    <div id="info">
+        <strong>Controls:</strong><br>
+        Left Click + Drag: Rotate<br>
+        Right Click + Drag: Pan<br>
+        Scroll: Zoom<br>
+        <div id="measurements" style="margin-top: 10px;">
+            <strong>Key Measurements (cm):</strong><br>
+            Base: 16.0 × 8.74 × 0.64<br>
+            Tubes: ⌀3.11 × 2.27 deep<br>
+            Clamp: 13.26 × 6.616
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, baseMesh, clampMesh;
+        let assembled = true;
+        let mouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let targetRotationX = 0, targetRotationY = 0;
+        let rotationX = 0, rotationY = 0;
+        
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x2a2a2a);
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(15, 10, 15);
+            camera.lookAt(0, 0, 0);
+            
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Create the clamp models
+            createBaseModel();
+            createClampModel();
+            
+            // Mouse controls
+            setupControls();
+            
+            // Start animation
+            animate();
+        }
+        
+        function createBaseModel() {
+            const baseGroup = new THREE.Group();
+            
+            // Main base plate
+            const baseGeometry = new THREE.BoxGeometry(16.0, 0.64, 8.74);
+            const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.y = 0.32; // Half thickness to sit on ground
+            base.castShadow = true;
+            base.receiveShadow = true;
+            baseGroup.add(base);
+            
+            // Tubes (cylinders on top of base)
+            const tubeGeometry = new THREE.CylinderGeometry(3.11/2, 3.11/2, 2.27, 32);
+            const tubeMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            
+            // Tube positions calculated from measurements
+            const tubeOffsetY = 0.64 + 2.27/2; // Base thickness + half tube height
+            const tubeSpacing = 1.62; // Distance between tubes
+            
+            // Left tube
+            const leftTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            leftTube.position.set(-tubeSpacing/2, tubeOffsetY, 0);
+            leftTube.castShadow = true;
+            baseGroup.add(leftTube);
+            
+            // Right tube
+            const rightTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            rightTube.position.set(tubeSpacing/2, tubeOffsetY, 0);
+            rightTube.castShadow = true;
+            baseGroup.add(rightTube);
+            
+            // Tube interior holes
+            const holeGeometry = new THREE.CylinderGeometry(2.20/2, 2.20/2, 2.27, 32);
+            const holeMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            
+            const leftHole = new THREE.Mesh(holeGeometry, holeMaterial);
+            leftHole.position.set(-tubeSpacing/2, tubeOffsetY, 0);
+            baseGroup.add(leftHole);
+            
+            const rightHole = new THREE.Mesh(holeGeometry, holeMaterial);
+            rightHole.position.set(tubeSpacing/2, tubeOffsetY, 0);
+            baseGroup.add(rightHole);
+            
+            // Plastic inserts (smaller holes)
+            const insertGeometry = new THREE.CylinderGeometry(1.30/2, 1.30/2, 1.0, 32);
+            const insertMaterial = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            
+            const leftInsert = new THREE.Mesh(insertGeometry, insertMaterial);
+            leftInsert.position.set(-tubeSpacing/2, tubeOffsetY + 0.5, 0);
+            baseGroup.add(leftInsert);
+            
+            const rightInsert = new THREE.Mesh(insertGeometry, insertMaterial);
+            rightInsert.position.set(tubeSpacing/2, tubeOffsetY + 0.5, 0);
+            baseGroup.add(rightInsert);
+            
+            // Back rail/track
+            const railGeometry = new THREE.BoxGeometry(16.0, 1.61, 0.21);
+            const railMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            const rail = new THREE.Mesh(railGeometry, railMaterial);
+            rail.position.set(0, 0.64 + 1.61/2, -8.74/2 + 0.21/2);
+            rail.castShadow = true;
+            baseGroup.add(rail);
+            
+            // Track groove in rail
+            const trackGeometry = new THREE.BoxGeometry(16.0, 0.78, 0.5);
+            const trackMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
+            const track = new THREE.Mesh(trackGeometry, trackMaterial);
+            track.position.set(0, 0.64 + 0.78/2, -8.74/2 + 0.21 + 0.5/2);
+            baseGroup.add(track);
+            
+            // Screw hole
+            const screwHoleGeometry = new THREE.CylinderGeometry(1.32/2, 1.32/2, 0.64, 32);
+            const screwHoleMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const screwHole = new THREE.Mesh(screwHoleGeometry, screwHoleMaterial);
+            screwHole.position.set(0, 0.32, -8.74/2 + 0.34);
+            baseGroup.add(screwHole);
+            
+            baseMesh = baseGroup;
+            scene.add(baseMesh);
+        }
+        
+        function createClampModel() {
+            const clampGroup = new THREE.Group();
+            
+            // Main clamp body (wedge shape)
+            const clampGeometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                // Front face (thicker end - 0.85)
+                -13.26/2, 0, 6.616/2,     // bottom left
+                13.26/2, 0, 6.616/2,      // bottom right
+                13.26/2, 0.85, 6.616/2,   // top right
+                -13.26/2, 0.85, 6.616/2,  // top left
+                
+                // Back face (thinner end - 0.70)
+                -13.26/2, 0, -6.616/2,    // bottom left
+                13.26/2, 0, -6.616/2,     // bottom right
+                13.26/2, 0.70, -6.616/2,  // top right
+                -13.26/2, 0.70, -6.616/2, // top left
+            ]);
+            
+            const indices = new Uint16Array([
+                // Front face
+                0, 1, 2, 0, 2, 3,
+                // Back face
+                4, 6, 5, 4, 7, 6,
+                // Bottom face
+                0, 4, 5, 0, 5, 1,
+                // Top face (slanted)
+                3, 2, 6, 3, 6, 7,
+                // Left face
+                0, 3, 7, 0, 7, 4,
+                // Right face
+                1, 5, 6, 1, 6, 2
+            ]);
+            
+            clampGeometry.setIndex(indices);
+            clampGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            clampGeometry.computeVertexNormals();
+            
+            const clampMaterial = new THREE.MeshLambertMaterial({ color: 0x999999 });
+            const clampBody = new THREE.Mesh(clampGeometry, clampMaterial);
+            clampBody.castShadow = true;
+            clampGroup.add(clampBody);
+            
+            // Back vertical section
+            const backGeometry = new THREE.BoxGeometry(13.26, 1.51, 0.85);
+            const backMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const backSection = new THREE.Mesh(backGeometry, backMaterial);
+            backSection.position.set(0, 0.70 + 1.51/2, -6.616/2 + 0.85/2);
+            backSection.castShadow = true;
+            clampGroup.add(backSection);
+            
+            // Track rail on clamp
+            const clampTrackGeometry = new THREE.BoxGeometry(0.55, 0.20, 6.616 - 0.23);
+            const clampTrackMaterial = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
+            const clampTrack = new THREE.Mesh(clampTrackGeometry, clampTrackMaterial);
+            clampTrack.position.set(0, 0.20/2, 0.23/2);
+            clampGroup.add(clampTrack);
+            
+            // Screw hole in back
+            const clampScrewHoleGeometry = new THREE.CylinderGeometry(0.854/2, 0.854/2, 0.85, 32);
+            const clampScrewHoleMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const clampScrewHole = new THREE.Mesh(clampScrewHoleGeometry, clampScrewHoleMaterial);
+            clampScrewHole.rotation.x = Math.PI / 2;
+            clampScrewHole.position.set(0, 0.70 + 1.51/2, -6.616/2 + 0.20);
+            clampGroup.add(clampScrewHole);
+            
+            // Triangular supports
+            const triangleGeometry = new THREE.BufferGeometry();
+            const triVertices = new Float32Array([
+                0, 0, 0,           // bottom corner
+                0.44, 0, 0,        // base right
+                0, 0.70, 0         // top corner
+            ]);
+            triangleGeometry.setAttribute('position', new THREE.BufferAttribute(triVertices, 3));
+            triangleGeometry.setIndex([0, 1, 2]);
+            triangleGeometry.computeVertexNormals();
+            
+            const triangleMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            
+            // Position triangular supports
+            const supportPositions = [
+                -13.26/4 - 3.17/4,  // Left positions
+                -13.26/4 + 3.17/4,
+                13.26/4 - 3.17/4,   // Right positions  
+                13.26/4 + 3.17/4
+            ];
+            
+            supportPositions.forEach((xPos, index) => {
+                const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
+                triangle.position.set(xPos, 0, -6.616/2 + 0.85/2);
+                triangle.castShadow = true;
+                clampGroup.add(triangle);
+            });
+            
+            clampMesh = clampGroup;
+            
+            // Position clamp based on assembly state
+            if (assembled) {
+                clampGroup.position.set(0, 0.64, -8.74/2 + 0.85/2);
+            } else {
+                clampGroup.position.set(0, 5, 0);
+            }
+            
+            scene.add(clampMesh);
+        }
+        
+        function setupControls() {
+            const container = document.getElementById('container');
+            
+            container.addEventListener('mousedown', (event) => {
+                mouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            container.addEventListener('mouseup', () => {
+                mouseDown = false;
+            });
+            
+            container.addEventListener('mousemove', (event) => {
+                if (mouseDown) {
+                    const deltaX = event.clientX - mouseX;
+                    const deltaY = event.clientY - mouseY;
+                    
+                    if (event.buttons === 1) { // Left click - rotate
+                        targetRotationX += deltaY * 0.01;
+                        targetRotationY += deltaX * 0.01;
+                    } else if (event.buttons === 2) { // Right click - pan
+                        camera.position.x -= deltaX * 0.05;
+                        camera.position.y += deltaY * 0.05;
+                    }
+                    
+                    mouseX = event.clientX;
+                    mouseY = event.clientY;
+                }
+            });
+            
+            container.addEventListener('wheel', (event) => {
+                const zoom = event.deltaY > 0 ? 1.1 : 0.9;
+                camera.position.multiplyScalar(zoom);
+            });
+            
+            container.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });
+        }
+        
+        function toggleAssembly() {
+            assembled = !assembled;
+            if (assembled) {
+                clampMesh.position.set(0, 0.64, -8.74/2 + 0.85/2);
+            } else {
+                clampMesh.position.set(0, 5, 0);
+            }
+        }
+        
+        function toggleWireframe() {
+            const wireframe = document.getElementById('wireframe').checked;
+            scene.traverse((child) => {
+                if (child.isMesh) {
+                    child.material.wireframe = wireframe;
+                }
+            });
+        }
+        
+        function resetView() {
+            camera.position.set(15, 10, 15);
+            camera.lookAt(0, 0, 0);
+            targetRotationX = 0;
+            targetRotationY = 0;
+            rotationX = 0;
+            rotationY = 0;
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Smooth rotation
+            rotationX += (targetRotationX - rotationX) * 0.1;
+            rotationY += (targetRotationY - rotationY) * 0.1;
+            
+            // Apply rotation to scene
+            scene.rotation.x = rotationX;
+            scene.rotation.y = rotationY;
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
