@@ -93,6 +93,81 @@
         let mouseX = 0, mouseY = 0;
         let targetRotationX = 0, targetRotationY = 0;
         let rotationX = 0, rotationY = 0;
+
+        let d = {
+            "base": {
+                "width": 16.0,
+                "depth": 8.74,
+                "height": 0.64
+            },
+            "back": {
+                "width": 16.0,
+                "height": 6.85,
+                "thickness": 0.21
+            },
+            "tracks": {
+                "width": 1.24,
+                "height": 6.85,
+                "depth": 1.35
+            },
+            "groove": {
+                "width": 0.55,
+                "depth": 0.56,
+                // "height": d.back.height - d.base.height
+                "height": 6.85 - 0.64
+            },
+            "tube": {
+                "diameter": 3.11,
+                "depth": 2.27,
+                "height": 2.5,
+                "spacing": 5.38,
+                "leftOffset": 2.18, // from left edge
+                "rightOffset": 2.18 // from right edge
+            },
+            "tubeHole": {
+                "diameter": 2.20,
+                "depth": 2.27
+            },
+            "insert": {
+                "diameter": 2.17,
+                "depth": 2.27
+            },
+            "insertHole": {
+                "diameter": 1.30,
+            },
+            "clamp": {
+                "width": 13.26,
+                "depth": 6.616,
+                "height": 1.51,
+                "thickness": 0.85,
+            }
+        };
+
+        // create custom geometry for triangular supports
+        function create3DTriangle(width = 0.44, height = 0.70, depth = 0.38) {
+            // Vertices for a right triangle prism
+            const vertices = new Float32Array([
+                0, 0, 0,           // 0: bottom left front
+                width, 0, 0,       // 1: bottom right front
+                0, height, 0,      // 2: top left front
+                0, 0, depth,       // 3: bottom left back
+                width, 0, depth,   // 4: bottom right back
+                0, height, depth   // 5: top left back
+            ]);
+            // Indices for all faces (2 triangles per rectangular face)
+            const indices = new Uint16Array([
+                2, 1, 0,    // front triangle
+                4, 5, 3,    // back triangle (reversed for correct normal)
+                4, 3, 1, 1, 3, 0, // bottom rectangle
+                5, 4, 2, 2, 4, 1, // right rectangle
+                3, 5, 0, 0, 5, 2  // left rectangle
+            ]);
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+            geometry.computeVertexNormals();
+            return geometry;
+        }
         
         function init() {
             // Scene setup
@@ -123,7 +198,7 @@
             scene.add(directionalLight);
             
             // Create the clamp models
-            createBaseModel(); // Uncommented to ensure baseMesh is defined
+            createBaseModel();
             createClampModel();
             
             // Mouse controls
@@ -134,6 +209,7 @@
         }
         
         function createBaseModel() {
+            console.log("Creating base model...");
             const baseGroup = new THREE.Group();
             
             // Main base plate
@@ -149,19 +225,19 @@
             const tubeGeometry = new THREE.CylinderGeometry(3.11/2, 3.11/2, 2.27, 32);
             const tubeMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
             
-            // Tube positions calculated from measurements
+            // Tube positions - corrected spacing
             const tubeOffsetY = 0.64 + 2.27/2; // Base thickness + half tube height
-            const tubeSpacing = 1.62; // Distance between tubes
+            const tubeSpacing = 5.38; // Distance between tubes
             
-            // Left tube
+            // Left tube (2.18cm from left edge)
             const leftTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-            leftTube.position.set(-tubeSpacing/2, tubeOffsetY, 0);
+            leftTube.position.set(-16.0/2 + 2.18 + 3.11/2, tubeOffsetY, 0);
             leftTube.castShadow = true;
             baseGroup.add(leftTube);
             
-            // Right tube
+            // Right tube (2.18cm from right edge)
             const rightTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-            rightTube.position.set(tubeSpacing/2, tubeOffsetY, 0);
+            rightTube.position.set(16.0/2 - 2.18 - 3.11/2, tubeOffsetY, 0);
             rightTube.castShadow = true;
             baseGroup.add(rightTube);
             
@@ -170,11 +246,11 @@
             const holeMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
             
             const leftHole = new THREE.Mesh(holeGeometry, holeMaterial);
-            leftHole.position.set(-tubeSpacing/2, tubeOffsetY, 0);
+            leftHole.position.set(-16.0/2 + 2.18 + 3.11/2, tubeOffsetY, 0);
             baseGroup.add(leftHole);
             
             const rightHole = new THREE.Mesh(holeGeometry, holeMaterial);
-            rightHole.position.set(tubeSpacing/2, tubeOffsetY, 0);
+            rightHole.position.set(16.0/2 - 2.18 - 3.11/2, tubeOffsetY, 0);
             baseGroup.add(rightHole);
             
             // Plastic inserts (smaller holes)
@@ -182,33 +258,53 @@
             const insertMaterial = new THREE.MeshLambertMaterial({ color: 0x444444 });
             
             const leftInsert = new THREE.Mesh(insertGeometry, insertMaterial);
-            leftInsert.position.set(-tubeSpacing/2, tubeOffsetY + 0.5, 0);
+            leftInsert.position.set(-16.0/2 + 2.18 + 3.11/2, tubeOffsetY + 0.5, 0);
             baseGroup.add(leftInsert);
             
             const rightInsert = new THREE.Mesh(insertGeometry, insertMaterial);
-            rightInsert.position.set(tubeSpacing/2, tubeOffsetY + 0.5, 0);
+            rightInsert.position.set(16.0/2 - 2.18 - 3.11/2, tubeOffsetY + 0.5, 0);
             baseGroup.add(rightInsert);
             
-            // Back rail/track
-            const railGeometry = new THREE.BoxGeometry(16.0, 1.61, 0.21);
-            const railMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
-            const rail = new THREE.Mesh(railGeometry, railMaterial);
-            rail.position.set(0, 0.64 + 1.61/2, -8.74/2 + 0.21/2);
-            rail.castShadow = true;
-            baseGroup.add(rail);
+            // Back piece - L-shaped, goes DOWN from base
+            const backGeometry = new THREE.BoxGeometry(16.0, 6.85, 0.21);
+            const backMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            const backPiece = new THREE.Mesh(backGeometry, backMaterial);
+            backPiece.position.set(0, 0.64 - 6.85/2, -8.74/2 + 0.21/2);
+            backPiece.castShadow = true;
+            baseGroup.add(backPiece);
             
-            // Track groove in rail
-            const trackGeometry = new THREE.BoxGeometry(16.0, 0.78, 0.5);
+            // Left track - vertical, facing inward (right)
+            const leftTrackGeometry = new THREE.BoxGeometry(1.24, 6.85, 1.35);
             const trackMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
-            const track = new THREE.Mesh(trackGeometry, trackMaterial);
-            track.position.set(0, 0.64 + 0.78/2, -8.74/2 + 0.21 + 0.5/2);
-            baseGroup.add(track);
+            const leftTrack = new THREE.Mesh(leftTrackGeometry, trackMaterial);
+            leftTrack.position.set(-16.0/2 + 1.24/2, 0.64 - 6.85/2, -8.74/2 + 0.21 + 1.35/2);
+            baseGroup.add(leftTrack);
             
-            // Screw hole
+            // Right track - vertical, facing inward (left) 
+            const rightTrack = new THREE.Mesh(leftTrackGeometry, trackMaterial);
+            rightTrack.position.set(16.0/2 - 1.24/2, 0.64 - 6.85/2, -8.74/2 + 0.21 + 1.35/2);
+            baseGroup.add(rightTrack);
+            
+            // Left and right track grooves
+            // Each track has a groove that is: 0.55cm wide
+            // 0.56cm deep from the outside edge of the track
+            // Positioned 0.42cm from the front edge of the track piece
+            // left/right/horizontal, vertical, depth
+            const grooveGeometry = new THREE.BoxGeometry(0.68, 6.85 - 0.64, 0.55);
+            const grooveMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const leftGroove = new THREE.Mesh(grooveGeometry, grooveMaterial);
+            leftGroove.position.set(-16.0/2 + 0.68/2 + 0.56, 0.64 - (6.85 + 0.64)/2, -8.74/2 + 0.21 + 1.35/2);
+            baseGroup.add(leftGroove);
+
+            const rightGroove = new THREE.Mesh(grooveGeometry, grooveMaterial);
+            rightGroove.position.set(16.0/2 - 0.68/2 - 0.56, 0.64 - (6.85 + 0.64)/2, -8.74/2 + 0.21 + 1.35/2);
+            baseGroup.add(rightGroove);
+
+            // Screw hole - vertical, in top piece, ~1cm from back
             const screwHoleGeometry = new THREE.CylinderGeometry(1.32/2, 1.32/2, 0.64, 32);
             const screwHoleMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const screwHole = new THREE.Mesh(screwHoleGeometry, screwHoleMaterial);
-            screwHole.position.set(0, 0.32, -8.74/2 + 0.34);
+            screwHole.position.set(0, 0.32, -8.74/2 + 1.0);
             baseGroup.add(screwHole);
             
             baseMesh = baseGroup;
@@ -219,121 +315,86 @@
             console.log("Creating clamp model...");
             const clampGroup = new THREE.Group();
             
-            try {
-                // Main clamp body (wedge shape)
-                const clampGeometry = new THREE.BufferGeometry();
-                const vertices = new Float32Array([
-                    // Front face (thicker end - 0.85)
-                    -13.26/2, 0, 6.616/2,     // bottom left
-                    13.26/2, 0, 6.616/2,      // bottom right
-                    13.26/2, 0.85, 6.616/2,   // top right
-                    -13.26/2, 0.85, 6.616/2,  // top left
-                    
-                    // Back face (thinner end - 0.70)
-                    -13.26/2, 0, -6.616/2,    // bottom left
-                    13.26/2, 0, -6.616/2,     // bottom right
-                    13.26/2, 0.70, -6.616/2,  // top right
-                    -13.26/2, 0.70, -6.616/2, // top left
-                ]);
-                
-                const indices = new Uint16Array([
-                    // Front face
-                    0, 1, 2, 0, 2, 3,
-                    // Back face
-                    4, 6, 5, 4, 7, 6,
-                    // Bottom face
-                    0, 4, 5, 0, 5, 1,
-                    // Top face (slanted)
-                    3, 2, 6, 3, 6, 7,
-                    // Left face
-                    0, 3, 7, 0, 7, 4,
-                    // Right face
-                    1, 5, 6, 1, 6, 2
-                ]);
-                
-                clampGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
-                clampGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                clampGeometry.computeVertexNormals();
-                console.log("Main clamp body created successfully");
+            // Main clamp body (wedge shape)
+            const clampGeometry = new THREE.BoxGeometry(13.26, 0.85, 6.616);
+            
             
             const clampMaterial = new THREE.MeshLambertMaterial({ color: 0x999999 });
             const clampBody = new THREE.Mesh(clampGeometry, clampMaterial);
+            clampBody.position.y = 0.85 / 2; // Half thickness to sit on ground
             clampBody.castShadow = true;
+            clampBody.receiveShadow = true;
             clampGroup.add(clampBody);
             
             // Back vertical section
-            const backGeometry = new THREE.BoxGeometry(13.26, 1.51, 0.85);
+            const backGeometry = new THREE.BoxGeometry(13.26, 1.51 - 0.85, 0.85);
             const backMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
             const backSection = new THREE.Mesh(backGeometry, backMaterial);
-            backSection.position.set(0, 0.70 + 1.51/2, -6.616/2 + 0.85/2);
+            backSection.position.set(0, 0.85 + (1.51 - 0.85)/2, -6.616/2 + 0.85/2);
             backSection.castShadow = true;
             clampGroup.add(backSection);
             
-            // Track rail on clamp
-            const clampTrackGeometry = new THREE.BoxGeometry(0.55, 0.20, 6.616 - 0.23);
-            const clampTrackMaterial = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
-            const clampTrack = new THREE.Mesh(clampTrackGeometry, clampTrackMaterial);
-            clampTrack.position.set(0, 0.20/2, 0.23/2);
-            clampGroup.add(clampTrack);
+            // Left and right clamp tracks that jut out
+            const leftTrackGeometry = new THREE.BoxGeometry(0.42, 1.51, 0.52);
+            const trackMaterial = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
             
-            // Screw hole in back
-            const clampScrewHoleGeometry = new THREE.CylinderGeometry(0.854/2, 0.854/2, 0.85, 32);
+            // Left track.21
+            const leftTrack = new THREE.Mesh(leftTrackGeometry, trackMaterial);
+            leftTrack.position.set(-13.26/2 - 0.42/2, 1.51/2, -6.616 / 2 +0.52/2 +0.21);
+            clampGroup.add(leftTrack);
+            
+            // Right track
+            const rightTrack = new THREE.Mesh(leftTrackGeometry, trackMaterial);
+            rightTrack.position.set(13.26/2 + 0.42/2, 1.51/2, -6.616 / 2 + 0.52/2 + 0.21);
+            clampGroup.add(rightTrack);
+            
+            // Screw hole in back - VERTICAL
+            const clampScrewHoleDiameter = 0.854; // Diameter of the screw hole
+            const clampScrewHoleBorder = 0.2; // Border around the screw hole
+            const clampScrewHoleGeometry = new THREE.CylinderGeometry(0.854/2, 0.854/2, 1.51, 32);
             const clampScrewHoleMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const clampScrewHole = new THREE.Mesh(clampScrewHoleGeometry, clampScrewHoleMaterial);
-            clampScrewHole.rotation.x = Math.PI / 2;
-            clampScrewHole.position.set(0, 0.70 + 1.51/2, -6.616/2 + 0.20);
+            clampScrewHole.position.set(0, 0 + 1.51/2, -6.616/2 + 1.51 / 4 + 0.2);
             clampGroup.add(clampScrewHole);
+
+            // Screw hole surrounding cylinder
+            const clampScrewHoleSurroundDitameter = clampScrewHoleDiameter + clampScrewHoleBorder; // Diameter of the surrounding cylinder
+            const clampScrewHoleSurroundGeometry = new THREE.CylinderGeometry(clampScrewHoleSurroundDitameter/2, clampScrewHoleSurroundDitameter/2, 1.51, 32);
+            const clampScrewHoleSurroundMaterial = new THREE.MeshLambertMaterial({ color: 0x999999 });
+            const clampScrewHoleSurround = new THREE.Mesh(clampScrewHoleSurroundGeometry, clampScrewHoleSurroundMaterial);
+            clampScrewHoleSurround.position.set(0, 0 + 1.51/2, -6.616/2 + 1.51 / 4 + clampScrewHoleBorder);
+            clampGroup.add(clampScrewHoleSurround);
             
             // Triangular supports
-            try {
-                console.log("Creating triangular supports...");
-                const triangleGeometry = new THREE.BufferGeometry();
-                const triVertices = new Float32Array([
-                    0, 0, 0,           // bottom corner
-                    0.44, 0, 0,        // base right
-                    0, 0.70, 0         // top corner
-                ]);
-                triangleGeometry.setAttribute('position', new THREE.BufferAttribute(triVertices, 3));
-                // Use proper BufferAttribute for indices instead of direct array
-                triangleGeometry.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2]), 1));
-                triangleGeometry.computeVertexNormals();
-                
-                const triangleMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
-                
-                // Position triangular supports
-                const supportPositions = [
-                    -13.26/4 - 3.17/4,  // Left positions
-                    -13.26/4 + 3.17/4,
-                    13.26/4 - 3.17/4,   // Right positions
-                    13.26/4 + 3.17/4
-                ];
-                
-                supportPositions.forEach((xPos, index) => {
-                    const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
-                    triangle.position.set(xPos, 0, -6.616/2 + 0.85/2);
-                    triangle.castShadow = true;
-                    clampGroup.add(triangle);
-                });
-                console.log("Triangular supports created successfully");
-            } catch (error) {
-                console.error("Error creating triangular supports:", error);
-            }
+            const triangleGeometry = create3DTriangle(0.44, 0.65, 0.38);
+            const triangleMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            
+            // Position triangular supports
+            const supportPositions = [
+                -13.26/4 - 3.17/2,  // Left positions
+                -13.26/4 + 3.17/2,
+                13.26/4 - 3.17/2,   // Right positions  
+                13.26/4 + 3.17/2
+            ];
+            
+            supportPositions.forEach((xPos, index) => {
+                const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
+                triangle.position.set(xPos, .85, -6.616/2 + 0.85/2 + .77/2);
+                triangle.rotation.y = -Math.PI / 2; // Rotate to face up
+                triangle.castShadow = true;
+                clampGroup.add(triangle);
+            });
             
             clampMesh = clampGroup;
             
             // Position clamp based on assembly state
             if (assembled) {
-                clampGroup.position.set(0, 0.64, -8.74/2 + 0.85/2);
+                clampGroup.position.set(0, 0.64 - 6.85/2, -0.85/2 - 0.2);
             } else {
                 clampGroup.position.set(0, 5, 0);
             }
             
             scene.add(clampMesh);
-            console.log("Clamp model added to scene successfully");
-            
-            } catch (error) {
-                console.error("Error in createClampModel:", error);
-            }
         }
         
         function setupControls() {
@@ -380,7 +441,7 @@
         function toggleAssembly() {
             assembled = !assembled;
             if (assembled) {
-                clampMesh.position.set(0, 0.64, -8.74/2 + 0.85/2);
+                clampMesh.position.set(0, 0.64 - 6.85/2, -8.74/2 + 0.85/2);
             } else {
                 clampMesh.position.set(0, 5, 0);
             }
@@ -407,19 +468,15 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            try {
-                // Smooth rotation
-                rotationX += (targetRotationX - rotationX) * 0.1;
-                rotationY += (targetRotationY - rotationY) * 0.1;
-                
-                // Apply rotation to scene
-                scene.rotation.x = rotationX;
-                scene.rotation.y = rotationY;
-                
-                renderer.render(scene, camera);
-            } catch (error) {
-                console.error("Error in animate function:", error);
-            }
+            // Smooth rotation
+            rotationX += (targetRotationX - rotationX) * 0.1;
+            rotationY += (targetRotationY - rotationY) * 0.1;
+            
+            // Apply rotation to scene
+            scene.rotation.x = rotationX;
+            scene.rotation.y = rotationY;
+            
+            renderer.render(scene, camera);
         }
         
         // Handle window resize
